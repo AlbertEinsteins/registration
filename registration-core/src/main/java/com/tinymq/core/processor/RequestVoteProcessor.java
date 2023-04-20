@@ -2,8 +2,9 @@ package com.tinymq.core.processor;
 
 import cn.hutool.core.lang.Assert;
 import com.tinymq.core.dto.VoteRequest;
-import com.tinymq.core.dto.VoteResposne;
+import com.tinymq.core.dto.VoteResponse;
 import com.tinymq.core.status.NodeManager;
+import com.tinymq.core.status.NodeStatus;
 import com.tinymq.remote.common.RemotingUtils;
 import com.tinymq.remote.netty.RequestProcessor;
 import com.tinymq.remote.protocol.JSONSerializer;
@@ -24,26 +25,43 @@ public class RequestVoteProcessor implements RequestProcessor {
     @Override
     public RemotingCommand process(ChannelHandlerContext ctx, RemotingCommand request) {
         Assert.notNull(request, "vote request can not be null");
+        if(nodeManager.getNodeStatus().equals(NodeStatus.STATUS.CANDIDATE)) {
+            //do not vote for anyone in candidate
+            VoteResponse voteResponse = VoteResponse.createVote(nodeManager.getCurTerm(), false);
+            RemotingCommand resp = RemotingCommand.createResponse(request.getCode(),
+                    "reject the vote request in which the peer node is in candidate");
+            resp.setBody(JSONSerializer.encode(voteResponse));
+            return resp;
+        }
 
         VoteRequest vote = JSONSerializer.decode(request.getBody(), VoteRequest.class);
 
         if(vote.getTerm() < nodeManager.getCurTerm()) {
-            VoteResposne voteResposne = VoteResposne.createVote(-1, false);
+            VoteResponse voteResponse = VoteResponse.createVote(nodeManager.getCurTerm(), false);
             RemotingCommand resp = RemotingCommand.createResponse(request.getCode(),
                     String.format("reject the vote request in term {%d}", vote.getTerm()));
-            resp.setBody(JSONSerializer.encode(voteResposne));
+            resp.setBody(JSONSerializer.encode(voteResponse));
             return resp;
         }
 
+
+        // TODO: 只能投票一次
         // 收到其他节点请求，重置自己的timer
-        this.nodeManager.resetElectionTimer();
+        VoteResponse voteResponse = null;
+        if(vote.getTerm() == nodeManager.getCurTerm()) {
+            // voted already
+            voteResponse = VoteResponse.createVote(nodeManager.getCurTerm(), false);
+        } else {
+            this.nodeManager.resetElectionTimer();
+            this.nodeManager.setCurTerm(vote.getTerm());
 
-        LOG.info("node {} receive vote reuqest: {}", nodeManager.getSelfAddr(), vote);
+            voteResponse = VoteResponse.createVote(nodeManager.getCurTerm(), true);
+        }
 
-        VoteResposne voteResposne = VoteResposne.createVote(nodeManager.getCurTerm(), true);
+        LOG.info("node {} receive vote request: {}", nodeManager.getSelfAddr(), vote);
         RemotingCommand resp = RemotingCommand.createResponse(request.getCode(),
                 String.format("the vote of the node {%s}", RemotingUtils.parseRemoteAddress(ctx.channel())));
-        resp.setBody(JSONSerializer.encode(voteResposne));
+        resp.setBody(JSONSerializer.encode(voteResponse));
         return resp;
     }
 

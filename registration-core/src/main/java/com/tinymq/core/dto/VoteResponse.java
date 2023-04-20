@@ -1,14 +1,14 @@
 package com.tinymq.core.dto;
 
-public class VoteResposne {
+public class VoteResponse {
     private int term;
 
     private boolean isVoteGranted;
 
-    public VoteResposne() {}
+    public VoteResponse() {}
 
-    public static VoteResposne createVote(int term, boolean isVoteGranted) {
-        VoteResposne resp = new VoteResposne();
+    public static VoteResponse createVote(int term, boolean isVoteGranted) {
+        VoteResponse resp = new VoteResponse();
         resp.setTerm(term);
         resp.setVoteGranted(isVoteGranted);
         return resp;
@@ -22,7 +22,7 @@ public class VoteResposne {
         this.term = term;
     }
 
-    public VoteResposne(int term, boolean isVoteGranted) {
+    public VoteResponse(int term, boolean isVoteGranted) {
         this.term = term;
         this.isVoteGranted = isVoteGranted;
     }

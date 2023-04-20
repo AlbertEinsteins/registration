@@ -33,9 +33,7 @@ public class NettyRemotingClient extends AbstractNettyRemoting
     private static final Logger LOGGER = LoggerFactory.getLogger(NettyRemotingClient.class);
 
     private static final long LOCK_TIMEOUT_MILLIS = 3000;
-
     private final NettyClientConfig nettyClientConfig;
-
     private final Bootstrap bootstrap = new Bootstrap();
 
     private final EventLoopGroup eventLoopGroupWorker;

@@ -1,14 +1,22 @@
 package com.tinymq.core;
 
 
+import java.io.File;
+
 public class RegistrationConfig {
+
+    //========= status ===============
     private int listenPort;
     private int heartBeatTimeMillis = 1000;
 
-    public static final String DEFAULT_COMMIT_LOG_FILEPATH = System.getProperty("user.home",
-            System.getProperty("user.dir"));
+    //============== store ============
+    public static final String DEFAULT_COMMIT_LOG_HOME = System.getProperty("com.tinymq.registry.store.home",
+            System.getProperty("user.home")) ;
+    public static final String DEFUALT_COMMIT_LOG_FILESIZE = System.getProperty("com.tinymq.registry.filesize", "61440");
 
-    public String commitLogPath = DEFAULT_COMMIT_LOG_FILEPATH;
+    private double createNewFileFactor = 0.8;
+    private int fileSize = Integer.parseInt(DEFUALT_COMMIT_LOG_FILESIZE);
+    private String savePath = DEFAULT_COMMIT_LOG_HOME + File.separator + "store";
 
     public int getListenPort() {
         return listenPort;
@@ -28,12 +36,28 @@ public class RegistrationConfig {
         return this;
     }
 
-    public String getCommitLogPath() {
-        return commitLogPath;
+
+    public double getCreateNewFileFactor() {
+        return createNewFileFactor;
     }
 
-    public RegistrationConfig setCommitLogPath(String commitLogPath) {
-        this.commitLogPath = commitLogPath;
-        return this;
+    public void setCreateNewFileFactor(double createNewFileFactor) {
+        this.createNewFileFactor = createNewFileFactor;
+    }
+
+    public String getSavePath() {
+        return savePath;
+    }
+
+    public void setSavePath(String savePath) {
+        this.savePath = savePath;
+    }
+
+    public int getFileSize() {
+        return fileSize;
+    }
+
+    public void setFileSize(int fileSize) {
+        this.fileSize = fileSize;
     }
 }

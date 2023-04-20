@@ -1,6 +1,8 @@
-package com.tinymq.core.store;
+package com.tinymq.core.status;
 
-import com.tinymq.core.StateMachine;
+import com.tinymq.core.dto.outer.StateModel;
+import com.tinymq.core.store.InstanceInfo;
+import com.tinymq.core.store.CommitLogEntry;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -17,7 +19,7 @@ public class KVStateMachine implements StateMachine {
 
 
     @Override
-    public void execute(CommitLogEntry logEntry) {
+    public void execute(StateModel stateModel) {
         //TODO
     }
 

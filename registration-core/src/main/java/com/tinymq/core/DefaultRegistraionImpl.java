@@ -7,18 +7,13 @@ public class DefaultRegistraionImpl implements Registration {
 
     private final NodeManager nodeManager;
     private final RegistrationConfig registrationConfig;
+
     private final StoreManager storeManager;
 
-    public DefaultRegistraionImpl() {
-        this.registrationConfig = resolveConfigFile();
-
-        this.nodeManager = new NodeManager(registrationConfig);
-        this.storeManager = new StoreManager();
-    }
-
-    private RegistrationConfig resolveConfigFile() {
-        return new RegistrationConfig()
-                .setListenPort(7800);
+    public DefaultRegistraionImpl(final RegistrationConfig registrationConfig) {
+        this.registrationConfig = registrationConfig;
+        this.storeManager = new StoreManager(registrationConfig);
+        this.nodeManager = new NodeManager(registrationConfig, storeManager);
     }
 
     @Override
@@ -29,6 +24,7 @@ public class DefaultRegistraionImpl implements Registration {
 
     @Override
     public void shutdown() {
-
+        this.storeManager.shutdown();
+        this.nodeManager.shutdown();
     }
 }

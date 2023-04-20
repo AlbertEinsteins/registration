@@ -1,6 +1,7 @@
 package com.tinymq;
 
 import com.tinymq.core.status.RandomResettableTimer;
+import com.tinymq.core.utils.UtilsAll;
 import org.junit.Test;
 
 import java.util.Properties;
@@ -104,5 +105,10 @@ public class AppTest
 
         latch.await();
         System.out.println("123213");
+    }
+
+    @Test
+    public void t() {
+        System.out.println(UtilsAll.getFileNameFromOffset(1));
     }
 }

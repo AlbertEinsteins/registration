@@ -10,7 +10,10 @@ public class RegistrationStartup {
     }
 
     private static void main0() {
-        Registration registration = new DefaultRegistraionImpl();
+        RegistrationConfig registrationConfig = new RegistrationConfig();
+        registrationConfig.setListenPort(7890);
+
+        Registration registration = new DefaultRegistraionImpl(registrationConfig);
         registration.start();
     }
 }

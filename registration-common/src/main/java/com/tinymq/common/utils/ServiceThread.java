@@ -37,7 +37,6 @@ public abstract class ServiceThread implements Runnable {
                 if(interrupt) {
                     this.thread.interrupt();
                 }
-
                 long beginTimeStamp = System.currentTimeMillis();
                 this.thread.join(JOIN_TIME);
                 long endTimeStamp = System.currentTimeMillis();

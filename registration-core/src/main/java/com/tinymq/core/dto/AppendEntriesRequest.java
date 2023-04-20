@@ -17,6 +17,15 @@ public class AppendEntriesRequest {
 
     private int leaderCommitIndex;
 
+    public static AppendEntriesRequest create(int term, String leaderAddr, int prevLogIndex, int prevLogTerm, int leaderCommitIndex) {
+        AppendEntriesRequest request = new AppendEntriesRequest();
+        request.setTerm(term);
+        request.setLeaderAddr(leaderAddr);
+        request.setPrevLogIndex(prevLogIndex);
+        request.setPrevLogTerm(prevLogTerm);
+        request.setLeaderCommitIndex(leaderCommitIndex);
+        return request;
+    }
     public static AppendEntriesRequest create(int term, String leaderAddr, int prevLogIndex, int prevLogTerm, int leaderCommitIndex,
                                               List<CommitLogEntry> commitLogEntries) {
         AppendEntriesRequest request = new AppendEntriesRequest();

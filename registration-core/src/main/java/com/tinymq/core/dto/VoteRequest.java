@@ -2,9 +2,7 @@ package com.tinymq.core.dto;
 
 public class VoteRequest {
     private int term;           // 当前任期
-
     private String candidateAddr;    // 被投票人
-
     private int lastLogIndex;   // 上次log entry 的下标
     private int lastLogTerm;    // 上次log entry 的任期
 

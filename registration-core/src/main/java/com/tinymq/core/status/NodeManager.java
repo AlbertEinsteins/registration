@@ -6,11 +6,15 @@ import com.tinymq.core.RegistrationConfig;
 import com.tinymq.core.dto.AppendEntriesRequest;
 import com.tinymq.core.dto.AppendEntriesResponse;
 import com.tinymq.core.dto.VoteRequest;
-import com.tinymq.core.dto.VoteResposne;
+import com.tinymq.core.dto.VoteResponse;
+import com.tinymq.core.dto.outer.StateModel;
+import com.tinymq.core.exception.AppendLogException;
 import com.tinymq.core.exception.RegistrationVoteException;
 import com.tinymq.core.processor.AcceptClientProcessor;
-import com.tinymq.core.processor.HeartBeatProcessor;
+import com.tinymq.core.processor.AppendEntriesProcessor;
 import com.tinymq.core.processor.RequestVoteProcessor;
+import com.tinymq.core.store.CommitLogEntry;
+import com.tinymq.core.store.StoreManager;
 import com.tinymq.remote.exception.RemotingConnectException;
 import com.tinymq.remote.exception.RemotingSendRequestException;
 import com.tinymq.remote.exception.RemotingTimeoutException;
@@ -25,6 +29,7 @@ import org.slf4j.LoggerFactory;
 import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.locks.ReentrantLock;
 
 /**
  * 管理节点的状态，完成两件事
@@ -43,13 +48,16 @@ public class NodeManager {
 
     // 每个节点选择成为主节点的时间范围
     private final int[] electionIntervalTimeoutMillis = new int[]{1000, 2000};
-
+    // 转发超时事件
+    private final long redirectTimeoutMillis = 1000;
 
     /*定时器发送心跳线程*/
     private final ScheduledExecutorService singleScheduleExecutor;
     /*执行内部的rpc请求*/
     private final ExecutorService publicThreadPool;
 
+    /* 发起异步请求辅助 */
+    private final ExecutorService asideThreadPool;
 
     //========================= 通信============================
     private NettyClientConfig nettyClientConfig;
@@ -57,21 +65,25 @@ public class NodeManager {
     private NettyServerConfig nettyServerConfig;
     private final NettyRemotingServer nettyRemotingServer;
 
-    private HeartBeatProcessor heartBeatProcessor;
+    private AppendEntriesProcessor appendEntriesProcessor;
     private RequestVoteProcessor requestVoteProcessor;
 
     private AcceptClientProcessor acceptClientProcessor;
     //============================================================
 
     /*在启动时，由外部注入的节点列表*/
-    private volatile Set<String> addrList;
+    private volatile Set<String> addrList = new HashSet<>();
     private final String selfAddr;
-
     private ConsensusService consensusService;
 
-    public NodeManager(RegistrationConfig registrationConfig) {
+
+    //============= store module =======================
+    private final StoreManager storeManager;
+
+
+    public NodeManager(final RegistrationConfig registrationConfig, final StoreManager storeManager) {
         this.registrationConfig = registrationConfig;
-        this.addrList = new HashSet<>();
+        this.storeManager = storeManager;
 
         //========伪造读入节点=============
         List<String> addrs = resolveConfigFile("test");
@@ -88,7 +100,7 @@ public class NodeManager {
         this.registerProcessors();
         this.createService();
 
-        this.randomResettableTimer = new RandomResettableTimer(new ElectionTask(), 10000,
+        this.randomResettableTimer = new RandomResettableTimer(new ElectionTask(), 5000,
                 electionIntervalTimeoutMillis[0], electionIntervalTimeoutMillis[1]);
         this.publicThreadPool = Executors.newWorkStealingPool();
         this.singleScheduleExecutor = Executors.newSingleThreadScheduledExecutor(new ThreadFactory() {
@@ -97,6 +109,7 @@ public class NodeManager {
                 return new Thread(r, "[ScheduledThreadPool-heartbeat]");
             }
         });
+        this.asideThreadPool = Executors.newWorkStealingPool();
 
         // 状态初始化为follower
         this.setNodeStatus(NodeStatus.STATUS.FOLLOWER);
@@ -111,11 +124,20 @@ public class NodeManager {
         this.randomResettableTimer.start();
     }
 
+    public void shutdown() {
+        this.nettyRemotingServer.shutdown();
+        this.nettyRemotingClient.shutdown();
+
+        this.randomResettableTimer.shutdown();
+        this.singleScheduleExecutor.shutdown();
+        this.publicThreadPool.shutdown();
+        this.asideThreadPool.shutdown();
+    }
+
     public void resetElectionTimer() {
         LOG.info("reset timer");
         this.randomResettableTimer.resetTimer();
     }
-
 
 
     //============= mock method
@@ -123,7 +145,6 @@ public class NodeManager {
         List<String> addrs = new ArrayList<>();
         addrs.add("127.0.0.1:7800");
         addrs.add("127.0.0.1:7801");
-        addrs.add("127.0.0.1:7802");
         return addrs;
     }
     //=============
@@ -133,10 +154,10 @@ public class NodeManager {
     }
 
     private void registerProcessors() {
-        this.heartBeatProcessor = new HeartBeatProcessor(this);
+        this.appendEntriesProcessor = new AppendEntriesProcessor(this, storeManager);
         this.requestVoteProcessor = new RequestVoteProcessor(this);
 
-        nettyRemotingServer.registerProcessor(RequestCode.APPENDENTRIES_EMPTY, heartBeatProcessor, null);
+        nettyRemotingServer.registerProcessor(RequestCode.APPENDENTRIES_EMPTY, appendEntriesProcessor, null);
         nettyRemotingServer.registerProcessor(RequestCode.REIGISTRATION_REQUESTVOTE, requestVoteProcessor, null);
     }
 
@@ -154,12 +175,63 @@ public class NodeManager {
         }
     }
 
+    public RemotingCommand redirectToLeader(RemotingCommand req) {
+        if(!nodeStatus.getStatus().equals(NodeStatus.STATUS.FOLLOWER)) {
+            LOG.info("the current node {} is not in state [follower], cancel redirect", selfAddr);
+            return null;
+        }
+
+        try {
+            return this.nettyRemotingClient.invokeSync(nodeStatus.getLeaderAddr(),
+                    req, this.redirectTimeoutMillis);
+        } catch (RemotingConnectException | RemotingSendRequestException | RemotingTimeoutException |
+                 InterruptedException e) {
+            LOG.error("the node {} in state {}, redirect to leader {} error",
+                    selfAddr, NodeStatus.STATUS.FOLLOWER, nodeStatus.getLeaderAddr(), e);
+            return RemotingCommand.createResponse(req.getCode(), "error occurred when redirect to leader");
+        }
+    }
+
+
+    public void handleRequest(final StateModel stateModel) throws AppendLogException {
+        //todo: store locally, then replicate it to the other follower node
+        final int term = nodeStatus.getCurTerm().get();
+        final int prevLastIndex = storeManager.getLogQueue().size() - 1;
+        final int prevLastTerm;
+        final int leaderCommitIdx = storeManager.getCommittedIndex();
+
+        if(prevLastIndex == -1) {
+            // first time
+            prevLastTerm = term;
+        } else {
+            prevLastTerm = storeManager.getLogQueue().at(prevLastIndex).getTerm();
+        }
+
+        AppendEntriesRequest appendEntriesRequest =
+                AppendEntriesRequest.create(term, selfAddr, prevLastIndex, prevLastTerm, leaderCommitIdx);
+        CommitLogEntry entry = CommitLogEntry.create(term, JSONSerializer.encode(stateModel));
+        appendEntriesRequest.setCommitLogEntries(Collections.singletonList(entry));
+
+
+        this.storeManager.appendLog(appendEntriesRequest);
+        // 同步日志, 不单独送，借助heartbeat
+        new SyncLogTask(3, appendEntriesRequest).run();
+    }
+
+
     public int getCurTerm() {
         return this.nodeStatus.getCurTerm().get();
+    }
+    public void setCurTerm(int term) {
+        this.nodeStatus.getCurTerm().set(term);
     }
 
     public void setNodeStatus(NodeStatus.STATUS status) {
         this.nodeStatus.setStatus(status);
+    }
+
+    public NodeStatus.STATUS getNodeStatus() {
+        return nodeStatus.getStatus();
     }
 
     public void setNettyClientConfig(NettyClientConfig nettyClientConfig) {
@@ -178,9 +250,58 @@ public class NodeManager {
         this.nodeStatus.setLeaderAddr(leaderAddr);
     }
 
+
+    class SyncLogTask implements Runnable {
+        private int retry = 3;
+        private final AppendEntriesRequest appendEntriesRequest;
+
+        /*当该entry is committed 时，执行到entry*/
+        private int copySuccessCnt = 0;
+        private final ReentrantLock lockNodes = new ReentrantLock();
+        private final ArrayList<String> nodes = new ArrayList<>();
+
+        public SyncLogTask(int retry, final AppendEntriesRequest appendEntriesRequest) {
+            this.retry = retry;
+            this.appendEntriesRequest = appendEntriesRequest;
+        }
+        @Override
+        public void run() {
+            final ConsensusService consensusService = NodeManager.this.consensusService;
+            nodes.addAll(NodeManager.this.addrList);
+            copySuccessCnt ++;
+
+            Iterator<String> iter = nodes.iterator();
+            while(iter.hasNext()) {
+                String addr = iter.next();
+                publicThreadPool.submit(() -> {
+                    try {
+                        AppendEntriesResponse response = consensusService.copyCommitLog(addr, appendEntriesRequest);
+
+                        lockNodes.lock();
+                        if (response != null && response.isSuccess()) {
+                            iter.remove();
+                            copySuccessCnt++;
+                        }
+                    } catch (Exception e) {
+                        LOG.warn("error occurred when replicate the log to follower node", e);
+                    } finally {
+                        lockNodes.unlock();
+                    }
+                });
+            }
+
+            if(copySuccessCnt > addrList.size() / 2) {
+                // this log is replicated by a majority of the node, make it committed.
+                LOG.info("the log is replicated by a majority of the node, make it committed.");
+                NodeManager.this.storeManager.increCommitIndex();
+            }
+
+            //TODO: copy infinitely if any node failed
+
+        }
+    }
     class ElectionTask implements Runnable {
         private final AtomicInteger voteCount = new AtomicInteger(0);
-
         private final CountDownLatch latch = new CountDownLatch(addrList.size() - 1);
 
         @Override
@@ -204,10 +325,10 @@ public class NodeManager {
                     @Override
                     public void run() {
                         try {
-                            VoteResposne voteResposne = consensusService.invokeVote(addr, voteRequest, 500);
+                            VoteResponse voteResponse = consensusService.invokeVote(addr, voteRequest, 500);
 
-                            LOG.info("node {} receive remote node {} vote response {}", selfAddr, addr, voteResposne);
-                            if (voteResposne.isVoteGranted()) {
+                            LOG.info("node {} receive remote node {} vote response {}", selfAddr, addr, voteResponse);
+                            if (voteResponse.isVoteGranted()) {
                                 voteCount.incrementAndGet();
                             }
 
@@ -255,9 +376,9 @@ public class NodeManager {
 
     }
 
-    class ConsensusServiceImpl implements ConsensusService {
+    class  ConsensusServiceImpl implements ConsensusService {
         @Override
-        public VoteResposne invokeVote(final String addr, final VoteRequest voteRequest, long timeoutMillis) throws RegistrationVoteException {
+        public VoteResponse invokeVote(final String addr, final VoteRequest voteRequest, long timeoutMillis) throws RegistrationVoteException {
             final NettyRemotingClient rpcClient = NodeManager.this.nettyRemotingClient;
 
             RemotingCommand req = RemotingCommand.createRequest(RequestCode.REIGISTRATION_REQUESTVOTE);
@@ -271,7 +392,7 @@ public class NodeManager {
                     LOG.warn("the remote server {} maybe has a problem", addr);
                     throw new RegistrationVoteException("the remote node {} response nothing", addr);
                 }
-                return JSONSerializer.decode(response.getBody(), VoteResposne.class);
+                return JSONSerializer.decode(response.getBody(), VoteResponse.class);
             } catch (InterruptedException e) {
                 LOG.error("an error occurred in election, check the remote addr {}", addr);
             } catch (RemotingConnectException | RemotingSendRequestException | RemotingTimeoutException ex) {
@@ -282,7 +403,14 @@ public class NodeManager {
 
         @Override
         public AppendEntriesResponse copyCommitLog(String addr, AppendEntriesRequest appendEntriesRequest) {
-            //TODO: 拷贝日志
+            final NettyRemotingClient rpcClient = NodeManager.this.nettyRemotingClient;
+
+            RemotingCommand copyLog = RemotingCommand.createRequest(RequestCode.APPENDENTRIES);
+            copyLog.setBody(
+                    JSONSerializer.encode(appendEntriesRequest)
+            );
+
+
             return null;
         }
     }
@@ -295,7 +423,7 @@ public class NodeManager {
             final ExecutorService publicThreadPool = NodeManager.this.publicThreadPool;
             final NettyRemotingClient rpcClient = NodeManager.this.nettyRemotingClient;
             final Set<String> addrs = NodeManager.this.addrList;
-            final int curTerm = nodeStatus.getStatus().code;
+            final int curTerm = nodeStatus.getCurTerm().get();
 
             LOG.info("heartbeat start to send...");
             RemotingCommand heartbeat = RemotingCommand.createRequest(RequestCode.APPENDENTRIES_EMPTY);

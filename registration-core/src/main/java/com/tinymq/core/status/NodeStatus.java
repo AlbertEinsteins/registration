@@ -11,7 +11,8 @@ public class NodeStatus {
     /*leaderAddr*/
     private volatile String leaderAddr = "";
 
-    private final AtomicInteger commitIndex = new AtomicInteger(0);
+    private volatile int[] nextIndex;
+    private volatile int[] matchIndex;
 
     public int incrementTerm() {
         return curTerm.incrementAndGet();
@@ -38,6 +39,10 @@ public class NodeStatus {
             return ;
         }
         this.leaderAddr = addr;
+    }
+
+    public String getLeaderAddr() {
+        return leaderAddr;
     }
 
 

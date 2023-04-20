@@ -18,7 +18,7 @@ public class RemotingCommand {
     private static final int REQUEST_OR_RESPONSE = 0;   // flag 第0bit表示；0为请求，1为响应
     private static final int ONE_WAY = 1;   // flag中所在第几位 单向发送，不需要回应
 
-    private static final int SERIAL_TYPE_BIT = 30;      // headerLen 最高位(除第32位符号位)不用
+    private static final int SERIAL_TYPE_BIT = 30;      // headerLen 副最高位(即30位)
 
     /* 业务码 */
     private int code;
