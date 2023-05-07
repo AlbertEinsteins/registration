@@ -84,8 +84,9 @@ public class AcceptClientProcessor implements RequestProcessor {
         }
 
         try {
-            this.nodeManager.handleRequest(stateModel);
+            RemotingCommand resp = this.nodeManager.handleRequest(stateModel);
             //TODO: 只要保存到本地, 同步log成功，就返回，不等commit
+
             return RemotingCommand.createResponse(request.getCode(), "save success");
         } catch (Exception e) {
             LOG.error("replicate log error");

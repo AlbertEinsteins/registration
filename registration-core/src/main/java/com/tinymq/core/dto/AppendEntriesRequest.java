@@ -38,10 +38,6 @@ public class AppendEntriesRequest {
         return request;
     }
 
-    public static AppendEntriesRequest createEmpty(int term, String leaderAddr) {
-        return AppendEntriesRequest.create(term, leaderAddr, -1, -1, -1, null);
-    }
-
     public int getTerm() {
         return term;
     }

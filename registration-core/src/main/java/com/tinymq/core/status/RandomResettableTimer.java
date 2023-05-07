@@ -50,8 +50,6 @@ public class RandomResettableTimer {
     public void resetTimer() {
         if(Objects.isNull(scheduledFuture)) {
             LOG.info("please start first...");
-        } else if(scheduledFuture.isDone()) {
-            LOG.info("the task in timer has been done...");
         } else {
             scheduledFuture.cancel(false);
             timer.getQueue().clear();

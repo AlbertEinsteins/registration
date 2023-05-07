@@ -13,15 +13,19 @@ import io.netty.channel.ChannelHandlerContext;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.util.concurrent.atomic.AtomicBoolean;
+
 public class RequestVoteProcessor implements RequestProcessor {
     private static final Logger LOG = LoggerFactory.getLogger(RequestVoteProcessor.class);
     
     private final NodeManager nodeManager;
-    
+//    private final AtomicBoolean voteOnce = new AtomicBoolean(true);
+
+
     public RequestVoteProcessor(final NodeManager nodeManager) {
         this.nodeManager = nodeManager;
     }
-    
+
     @Override
     public RemotingCommand process(ChannelHandlerContext ctx, RemotingCommand request) {
         Assert.notNull(request, "vote request can not be null");
@@ -46,17 +50,18 @@ public class RequestVoteProcessor implements RequestProcessor {
 
 
         // TODO: 只能投票一次
-        // 收到其他节点请求，重置自己的timer
         VoteResponse voteResponse = null;
+
         if(vote.getTerm() == nodeManager.getCurTerm()) {
             // voted already
             voteResponse = VoteResponse.createVote(nodeManager.getCurTerm(), false);
         } else {
-            this.nodeManager.resetElectionTimer();
             this.nodeManager.setCurTerm(vote.getTerm());
-
             voteResponse = VoteResponse.createVote(nodeManager.getCurTerm(), true);
         }
+
+        // 收到其他节点请求，重置自己的timer
+        this.nodeManager.resetElectionTimer();
 
         LOG.info("node {} receive vote request: {}", nodeManager.getSelfAddr(), vote);
         RemotingCommand resp = RemotingCommand.createResponse(request.getCode(),

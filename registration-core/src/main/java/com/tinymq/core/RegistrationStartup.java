@@ -11,7 +11,7 @@ public class RegistrationStartup {
 
     private static void main0() {
         RegistrationConfig registrationConfig = new RegistrationConfig();
-        registrationConfig.setListenPort(7890);
+        registrationConfig.setListenPort(7800);
 
         Registration registration = new DefaultRegistraionImpl(registrationConfig);
         registration.start();

@@ -4,10 +4,13 @@ public class AppendEntriesResponse {
     private int currentTerm;
     private boolean isSuccess;
 
-    public static AppendEntriesResponse create(int currentTerm, boolean isSuccess) {
+    private int matchIndex;
+
+    public static AppendEntriesResponse create(int currentTerm, boolean isSuccess, int matchIndex) {
         AppendEntriesResponse response = new AppendEntriesResponse();
         response.setCurrentTerm(currentTerm);
         response.setSuccess(isSuccess);
+        response.setMatchIndex(matchIndex);
         return response;
     }
     public int getCurrentTerm() {
@@ -24,5 +27,13 @@ public class AppendEntriesResponse {
 
     public void setSuccess(boolean success) {
         isSuccess = success;
+    }
+
+    public int getMatchIndex() {
+        return matchIndex;
+    }
+
+    public void setMatchIndex(int matchIndex) {
+        this.matchIndex = matchIndex;
     }
 }

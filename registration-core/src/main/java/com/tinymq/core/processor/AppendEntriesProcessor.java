@@ -37,15 +37,17 @@ public class AppendEntriesProcessor implements RequestProcessor {
         }
         AppendEntriesRequest appendEntriesRequest = JSONSerializer.decode(request.getBody(), AppendEntriesRequest.class);
         if(appendEntriesRequest.getTerm() < nodeManager.getCurTerm()) {
-            // old-term node request
+            // if old-term node request, reject
             return rejectOldTermReq(request, appendEntriesRequest.getTerm());
         }
+        //重置自己的定时器
+        this.nodeManager.resetElectionTimer();
 
         switch (request.getCode()) {
             case RequestCode.APPENDENTRIES_EMPTY:
-                return processEmptyHeartbeat(appendEntriesRequest, ctx);
+                return processEmptyHeartbeat(appendEntriesRequest, request);
             case RequestCode.APPENDENTRIES:
-                return processAppendEntries(appendEntriesRequest, ctx, request);
+                return processAppendEntries(appendEntriesRequest, request);
             default:
                 break;
         }
@@ -55,19 +57,29 @@ public class AppendEntriesProcessor implements RequestProcessor {
     }
 
     /**
-     * 对于普通心跳，简单log，重置自己的定时器，设置为Follower状态
+     * 对于普通心跳，简单log，设置为Follower状态
      */
-    private RemotingCommand processEmptyHeartbeat(AppendEntriesRequest req, ChannelHandlerContext ctx) {
+    private RemotingCommand processEmptyHeartbeat(AppendEntriesRequest req, RemotingCommand request) {
         LOG.info("receive heartbeat in term {} from other node , cur node term {}", req.getTerm(), nodeManager.getCurTerm());
-        this.nodeManager.resetElectionTimer();
         this.nodeManager.setLeader(req.getLeaderAddr());
         this.nodeManager.setNodeStatus(NodeStatus.STATUS.FOLLOWER);
-        return null;
+
+        // find the match index
+        final int prevLogTerm = req.getPrevLogTerm();
+        final int prevLogIndex = req.getPrevLogIndex();
+
+        int matchIndex = storeManager.findMatchIndex(prevLogIndex, prevLogTerm);
+
+        RemotingCommand resp = RemotingCommand.createResponse(request.getCode(), "success");
+        AppendEntriesResponse response = AppendEntriesResponse.create(this.nodeManager.getCurTerm(),
+                true, matchIndex);
+        resp.setBody(JSONSerializer.encode(response));
+        return resp;
     }
 
 
-    private RemotingCommand processAppendEntries(AppendEntriesRequest req, ChannelHandlerContext ctx, RemotingCommand request) {
-        // TODO: 检查，回退log到与leader一致的时刻
+    private RemotingCommand processAppendEntries(AppendEntriesRequest req, RemotingCommand request) {
+        // TODO: 检查，查找在FOLLOWER中与leader同一位置的索引项
         final DefaultLogQueue logQueue = storeManager.getLogQueue();
         final int prevLogIndex = req.getPrevLogIndex();
         final int prevLogTerm = req.getPrevLogTerm();
@@ -75,33 +87,38 @@ public class AppendEntriesProcessor implements RequestProcessor {
         try {
             if(logQueue.size() == 0
                 || logQueue.at(prevLogIndex).getTerm() == prevLogTerm) {
-                //create
-                storeManager.appendLog(req);
+                // store
+                int matchIndex = storeManager.appendLog(req.getCommitLogEntries());
+
                 RemotingCommand resp = RemotingCommand.createResponse(request.getCode(), "success");
                 resp.setBody(
-                        JSONSerializer.encode(AppendEntriesResponse.create(nodeManager.getCurTerm(), true))
+                        JSONSerializer.encode(AppendEntriesResponse.create(nodeManager.getCurTerm(), true, matchIndex))
                 );
                 return resp;
             }
 
-            // TODO: not match
+            // TODO: not match, find the match idx
             LOG.info("the node {} not match prevLogIndex {} with prevLogTerm {}; [curTerm: {}, curLogIndex: {}]",
                     nodeManager.getSelfAddr(), prevLogIndex, prevLogTerm,
                     nodeManager.getCurTerm(), storeManager.getLogQueue().size() - 1);
 
+            RemotingCommand resp = RemotingCommand.createResponse(request.getCode(), "the preLogIndex mismatch");
+            resp.setBody(
+                    JSONSerializer.encode(AppendEntriesResponse.create(nodeManager.getCurTerm(), false, ))
+            );
+
         } catch (AppendLogException e) {
-            throw new RuntimeException(e);
+            LOG.error("append log exception occurred", e);
+            //the body is null if not set
+            return RemotingCommand.createResponse(request.getCode(), "");
         }
-
-
-        return null;
     }
 
     private RemotingCommand rejectOldTermReq(RemotingCommand req, int reqTerm) {
         RemotingCommand response = RemotingCommand.createResponse(req.getCode(),
                 String.format("the req term {%d} is less than the peer node {%d}", reqTerm, nodeManager.getCurTerm()));
         response.setBody(
-                JSONSerializer.encode(AppendEntriesResponse.create(nodeManager.getCurTerm(), false))
+                JSONSerializer.encode(AppendEntriesResponse.create(nodeManager.getCurTerm(), false, -1))
         );
         return response;
     }
