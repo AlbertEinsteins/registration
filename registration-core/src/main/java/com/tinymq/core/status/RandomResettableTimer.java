@@ -36,6 +36,7 @@ public class RandomResettableTimer {
                 return new Thread(r, "[VoteScheduleTimer]");
             }
         });
+        this.timer.setRemoveOnCancelPolicy(true);
     }
 
     public void start() {
@@ -51,7 +52,7 @@ public class RandomResettableTimer {
         if(Objects.isNull(scheduledFuture)) {
             LOG.info("please start first...");
         } else {
-            scheduledFuture.cancel(false);
+            scheduledFuture.cancel(true);
             timer.getQueue().clear();
             scheduledFuture = submitAndGetTimerTask();
         }
@@ -62,8 +63,8 @@ public class RandomResettableTimer {
      */
     public void clearTimer() {
         if(scheduledFuture != null && !scheduledFuture.isDone()) {
-            LOG.info("clear timer...............");
-            scheduledFuture.cancel(false);
+            LOG.info("clear election timer...............");
+            scheduledFuture.cancel(true);
             timer.getQueue().clear();
         }
     }

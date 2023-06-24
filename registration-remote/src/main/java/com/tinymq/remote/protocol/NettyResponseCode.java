@@ -1,6 +1,8 @@
 package com.tinymq.remote.protocol;
 
-public class NettyResponseCode {
+import com.tinymq.common.protocol.RequestCode;
+
+public class NettyResponseCode extends RequestCode {
     public static final int SUCCESS = 0;
 
     public static final int SYSTEM_ERR = 1;

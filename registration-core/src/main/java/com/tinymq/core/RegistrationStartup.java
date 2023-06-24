@@ -1,7 +1,6 @@
 package com.tinymq.core;
 
-import com.tinymq.core.DefaultRegistraionImpl;
-import com.tinymq.core.Registration;
+import com.tinymq.core.config.RegistrationConfig;
 
 public class RegistrationStartup {
 
@@ -10,10 +9,11 @@ public class RegistrationStartup {
     }
 
     private static void main0() {
-        RegistrationConfig registrationConfig = new RegistrationConfig();
-        registrationConfig.setListenPort(7800);
+        RegistrationConfig registrationConfig = new RegistrationConfig("registration.yaml");
 
-        Registration registration = new DefaultRegistraionImpl(registrationConfig);
+        Registration registration = new DefaultRegistrationImpl(registrationConfig);
         registration.start();
+
+        registration.shutdown();
     }
 }

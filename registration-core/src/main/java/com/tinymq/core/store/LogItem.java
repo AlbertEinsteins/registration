@@ -9,7 +9,7 @@ public class LogItem {
 
     public static LogItem create(int term, long startOffset) {
         LogItem item = new LogItem();
-        item.setStartOffset(term);
+        item.setTerm(term);
         item.setStartOffset(startOffset);
         return item;
     }

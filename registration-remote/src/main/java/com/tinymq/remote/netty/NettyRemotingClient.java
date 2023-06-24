@@ -275,6 +275,7 @@ public class NettyRemotingClient extends AbstractNettyRemoting
             }
         } else {
             LOGGER.warn("invokeSync send request failed, close the channel {}", addr);
+            closeChannel(addr, channel);
             throw new RemotingConnectException("invokeSync channel connected failed exception channel, " + addr);
         }
     }

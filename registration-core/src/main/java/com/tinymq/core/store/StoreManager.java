@@ -1,16 +1,15 @@
 package com.tinymq.core.store;
 
 import cn.hutool.core.lang.Assert;
-import com.tinymq.core.RegistrationConfig;
-import com.tinymq.core.dto.AppendEntriesRequest;
+import com.tinymq.core.config.RegistrationConfig;
 import com.tinymq.core.exception.AppendLogException;
+import com.tinymq.core.status.StateMachine;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
-import java.util.Optional;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /**
@@ -26,20 +25,24 @@ public class StoreManager {
     /* 仅仅存储逻辑位置，即pos和size */
     private final DefaultLogQueue logQueue;
 
+    private final StateMachine stateMachine;
+
+
     /**
      * lastApplied <= committed <= logQueue.size()
      */
 
     private final AtomicInteger commitIndex = new AtomicInteger(-1);
 
-    private final AtomicInteger lastApplied = new AtomicInteger(0);
+    private final AtomicInteger lastApplied = new AtomicInteger(-1);
 
     private final RegistrationConfig registrationConfig;
 
-    public StoreManager(RegistrationConfig registrationConfig) {
+    public StoreManager(RegistrationConfig registrationConfig, final StateMachine stateMachine) {
         this.registrationConfig = registrationConfig;
         this.commitLogService = new DefaultCommitLogService(registrationConfig);
         this.logQueue = new DefaultLogQueue();
+        this.stateMachine = stateMachine;
 
         this.commitLogService.start();
     }
@@ -47,6 +50,7 @@ public class StoreManager {
     public void shutdown() {
         this.commitLogService.shutdown();
     }
+
 
     /**
      * 获取还没被StateMachine执行的entry
@@ -85,9 +89,16 @@ public class StoreManager {
             return Collections.emptyList();
         }
     }
-
+    /**
+     * @param index
+     * @return
+     */
     public CommitLogEntry getByIndex(int index) {
-        if(index < 0 || index >= logQueue.size()) {
+        if(logQueue.size() == 0 || index == logQueue.size()) {
+            return null;
+        }
+
+        if(index < 0 || index > logQueue.size()) {
             throw new IndexOutOfBoundsException(String.format("method [getByIndex] get index {%d}", index));
         }
         List<CommitLogEntry> entryList = selectRange(index, index + 1);
@@ -95,33 +106,42 @@ public class StoreManager {
     }
 
 
-    public void increCommitIndex() {
-        this.commitIndex.incrementAndGet();
+    public boolean setCommitIndexAndExec(int saveIndex) {
+        if(commitIndex.get() < saveIndex) {
+            try {
+                for(int i = commitIndex.get() + 1; i <= saveIndex
+                        && i < logQueue.size(); i++) {
+                    CommitLogEntry entry = getByIndex(i);
+                    stateMachine.execute(entry);
+                    commitIndex.incrementAndGet();
+                }
+            } catch (Exception e) {
+                LOG.error("Error occurred in execute log to state machine", e);
+                return false;
+            }
+        }
+        return true;
     }
-    public void setCommitIndex(int commitIndex) {
-        this.commitIndex.set(commitIndex);
-    }
+
     /*
-    api for outer, will not check
-    will return the save index
+    api for outer, will not check the data
+    and immediately return the save index
     * */
     public int appendLog(final List<CommitLogEntry> entryList) throws AppendLogException {
         Assert.notEmpty(entryList);
 
         // store
-        if(!entryList.isEmpty()) {
-            for (CommitLogEntry logEntry : entryList) {
-                try {
-                    // store physically
-                    long startPos = this.commitLogService.appendLog(logEntry);
-                    // store logically
-                    this.logQueue.offer(LogItem.create(logEntry.getCreatedTerm(), startPos));
-                    return logQueue.size() - 1;
-                } catch (AppendLogException e) {
-                    LogItem logItem = this.logQueue.pollLast();
-                    LOG.error("store err, appendLog store physically exception occurred, poll logical item {}", logItem, e);
-                    throw e;
-                }
+        for (CommitLogEntry logEntry : entryList) {
+            try {
+                // store physically
+                long startPos = this.commitLogService.appendLog(logEntry);
+                // store logically
+                this.logQueue.offer(LogItem.create(logEntry.getCreatedTerm(), startPos));
+                return logQueue.size() - 1;
+            } catch (AppendLogException e) {
+                LogItem logItem = this.logQueue.pollLast();
+                LOG.error("store err, appendLog store physically exception occurred, poll logical item {}", logItem, e);
+                throw e;
             }
         }
         return -1;        // unreachable ignore this line
@@ -131,15 +151,12 @@ public class StoreManager {
         return appendLog(Collections.singletonList(entryList));
     }
 
-    // todo:
-    public int findMatchIndex(int prevLogIndex, int prevLogTerm) {
-        int size = logQueue.size();
-        if(prevLogIndex >= 0 && prevLogIndex < size) {
-            if(logQueue.at(prevLogIndex).getTerm() == prevLogTerm) {
-                return prevLogIndex;
-            }
+    public boolean isMatch(int prevLogIndex, int prevLogTerm) {
+        if(prevLogIndex == -1) {
+            return true;
         }
-        return -1;
+        return prevLogIndex <= this.logQueue.size() - 1
+                && this.logQueue.at(prevLogIndex).getTerm() == prevLogTerm;
     }
 
 

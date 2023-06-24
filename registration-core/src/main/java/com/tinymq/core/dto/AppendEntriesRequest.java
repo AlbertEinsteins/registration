@@ -6,15 +6,10 @@ import java.util.List;
 
 public class AppendEntriesRequest {
     private int term;
-
     private String leaderAddr;
-
     private int prevLogIndex;
-
     private int prevLogTerm;
-
     private List<CommitLogEntry> commitLogEntries;
-
     private int leaderCommitIndex;
 
     public static AppendEntriesRequest create(int term, String leaderAddr, int prevLogIndex, int prevLogTerm, int leaderCommitIndex) {

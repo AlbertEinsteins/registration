@@ -1,6 +1,6 @@
 package com.tinymq;
 
-import com.tinymq.core.RegistrationConfig;
+import com.tinymq.core.config.RegistrationConfig;
 import com.tinymq.core.exception.AppendLogException;
 import com.tinymq.core.store.DefaultCommitLogService;
 import com.tinymq.core.store.CommitLogEntry;
@@ -17,7 +17,7 @@ public class CommitLogTest {
 
     @Before
     public void init() {
-        RegistrationConfig registrationConfig = new RegistrationConfig();
+        RegistrationConfig registrationConfig = new RegistrationConfig("registraion.yaml");
         this.defaultCommitLogService = new DefaultCommitLogService(registrationConfig);
         this.defaultCommitLogService.start();
     }

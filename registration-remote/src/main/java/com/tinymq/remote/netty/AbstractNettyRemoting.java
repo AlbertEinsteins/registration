@@ -9,7 +9,6 @@ import com.tinymq.remote.common.RemotingUtils;
 import com.tinymq.remote.exception.RemotingSendRequestException;
 import com.tinymq.remote.exception.RemotingTimeoutException;
 import com.tinymq.remote.exception.RemotingTooMuchException;
-import com.tinymq.remote.protocol.NettyResponseCode;
 import com.tinymq.remote.protocol.RemotingCommand;
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelFuture;
@@ -41,7 +40,7 @@ public abstract class AbstractNettyRemoting {
     /* 异步最大请求数 */
     protected Semaphore semaphoreAsync;
 
-    protected  List<RPCHook> rpcHookList = new ArrayList<>();
+    protected List<RPCHook> rpcHookList = new ArrayList<>();
 
     // 回调函数执行线程
     public abstract ExecutorService getCallbackExecutor() ;
@@ -95,8 +94,8 @@ public abstract class AbstractNettyRemoting {
         final int reqId = msg.getRequestId();
 
         if(pair == null) {
-            LOGGER.error("request code is not supported, check the code");
-            RemotingCommand resp = RemotingCommand.createResponse(NettyResponseCode.SYSTEM_BUSY, "system busy, request is rejected");
+            LOGGER.warn("request code is not supported, check the code");
+            RemotingCommand resp = RemotingCommand.createResponse(msg.getCode(), "request code not supported, request is rejected");
             resp.setRequestId(reqId);
             ctx.writeAndFlush(resp);
             return ;
@@ -104,7 +103,7 @@ public abstract class AbstractNettyRemoting {
 
         if(pair.getKey().rejectRequest()) {
             LOGGER.warn("request is rejected");
-            RemotingCommand resp = RemotingCommand.createResponse(NettyResponseCode.SYSTEM_BUSY, "system busy, request is rejected");
+            RemotingCommand resp = RemotingCommand.createResponse(msg.getCode(), "the processor rejected the request, request is rejected");
             resp.setRequestId(reqId);
             ctx.writeAndFlush(resp);
             return ;
@@ -145,7 +144,7 @@ public abstract class AbstractNettyRemoting {
                         callBack.operationComplete(response);
                     }
                 } catch (Throwable e) {
-                    LOGGER.error("request process error");
+                    LOGGER.error("request process error", e);
                     LOGGER.error(msg.toString());
                 }
             }
@@ -158,7 +157,7 @@ public abstract class AbstractNettyRemoting {
                 LOGGER.warn("task is so much that beyond thread pool ability");
             }
             if(!msg.isOneWayType()) {
-                RemotingCommand resp = RemotingCommand.createResponse(NettyResponseCode.SYSTEM_BUSY, "system busy, request is rejected");
+                RemotingCommand resp = RemotingCommand.createResponse(msg.getCode(), "system busy, request is rejected");
                 resp.setRequestId(reqId);
                 ctx.writeAndFlush(resp);
             }
@@ -322,7 +321,7 @@ public abstract class AbstractNettyRemoting {
                 });
             } catch (Exception e) {
                 once.release();
-                LOGGER.warn("invokeOnewayImpl request error");
+                LOGGER.warn("invokeOnewayImpl request error", e);
                 throw new RemotingSendRequestException("invokeOnewayImpl send exception", e);
             }
 

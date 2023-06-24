@@ -36,9 +36,8 @@ public class AppTest
             public void run() {
                 System.out.println("123213");
             }
-        }, 300, 2000, TimeUnit.MILLISECONDS);
+        }, 0, ThreadLocalRandom.current().nextLong(1500, 3000), TimeUnit.MILLISECONDS);
 
-        scheduledFuture.cancel(false);
 
 
         TimeUnit.SECONDS.sleep(100);

@@ -25,13 +25,16 @@ public class MappedFileGroup {
     // 不存在，则选择创建
     public MappedFile getMappedFile(final int startOffset, boolean isCreate) {
         MappedFile mappedFile = getMappedFile(startOffset);
-        if(!isCreate) {
+        if(mappedFile == null) {
+            if(!isCreate) {
+                return mappedFile;
+            }
+            //文件起始地址
+            int fileStartOffset = startOffset - (startOffset % mappedFileSize);
+            mappedFile = this.createFileService.putAndGetMappedFile(UtilsAll.getFileNameFromOffset(fileStartOffset),
+                    mappedFileSize);
             return mappedFile;
         }
-        //文件起始地址
-        int fileStartOffset = startOffset - (startOffset % mappedFileSize);
-        mappedFile = this.createFileService.putAndGetMappedFile(UtilsAll.getFileNameFromOffset(fileStartOffset),
-                mappedFileSize);
         return mappedFile;
     }
     public void add(MappedFile mappedFile) {
@@ -41,12 +44,11 @@ public class MappedFileGroup {
     }
 
     public MappedFile getMappedFile(final int startOffset) {
-        MappedFile mappedFile = null;
         int idx = startOffset / this.mappedFileSize;
-        if(idx + 1 > this.mappedFiles.size()) {
-            return mappedFile;
+        if(idx >= this.mappedFiles.size()) {
+            return null;
         }
-        return this.mappedFiles.get(startOffset);
+        return this.mappedFiles.get(idx);
     }
 
     public MappedFile getLastMappedFile() {

@@ -10,7 +10,7 @@
     <module>registration-remote</module>
     <module>registration-log</module>
     <module>registration-core</module>
-      <module>registration-api</module>
+      <module>registration-client</module>
   </modules>
   <packaging>pom</packaging>
 

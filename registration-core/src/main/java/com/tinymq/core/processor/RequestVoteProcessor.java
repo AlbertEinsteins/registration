@@ -13,14 +13,10 @@ import io.netty.channel.ChannelHandlerContext;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.util.concurrent.atomic.AtomicBoolean;
-
 public class RequestVoteProcessor implements RequestProcessor {
     private static final Logger LOG = LoggerFactory.getLogger(RequestVoteProcessor.class);
     
     private final NodeManager nodeManager;
-//    private final AtomicBoolean voteOnce = new AtomicBoolean(true);
-
 
     public RequestVoteProcessor(final NodeManager nodeManager) {
         this.nodeManager = nodeManager;
@@ -29,43 +25,32 @@ public class RequestVoteProcessor implements RequestProcessor {
     @Override
     public RemotingCommand process(ChannelHandlerContext ctx, RemotingCommand request) {
         Assert.notNull(request, "vote request can not be null");
-        if(nodeManager.getNodeStatus().equals(NodeStatus.STATUS.CANDIDATE)) {
-            //do not vote for anyone in candidate
-            VoteResponse voteResponse = VoteResponse.createVote(nodeManager.getCurTerm(), false);
-            RemotingCommand resp = RemotingCommand.createResponse(request.getCode(),
-                    "reject the vote request in which the peer node is in candidate");
-            resp.setBody(JSONSerializer.encode(voteResponse));
-            return resp;
-        }
-
         VoteRequest vote = JSONSerializer.decode(request.getBody(), VoteRequest.class);
 
         if(vote.getTerm() < nodeManager.getCurTerm()) {
+            //reject old term
             VoteResponse voteResponse = VoteResponse.createVote(nodeManager.getCurTerm(), false);
             RemotingCommand resp = RemotingCommand.createResponse(request.getCode(),
-                    String.format("reject the vote request in term {%d}", vote.getTerm()));
+                    String.format("reject the vote request in term {%d}, cur term {%d}", vote.getTerm(), nodeManager.getCurTerm()));
             resp.setBody(JSONSerializer.encode(voteResponse));
             return resp;
-        }
+        } else if(vote.getTerm() > nodeManager.getCurTerm()) {
 
-
-        // TODO: 只能投票一次
-        VoteResponse voteResponse = null;
-
-        if(vote.getTerm() == nodeManager.getCurTerm()) {
-            // voted already
-            voteResponse = VoteResponse.createVote(nodeManager.getCurTerm(), false);
+            // get the new term vote, then cur node turns to follower
+            LOG.debug("vote for node: {}", vote.getCandidateAddr());
+            // 收到其他，投票
+            nodeManager.setCurTerm(vote.getTerm());
+            return getRemotingCommand(request, true, String.format("vote for node: {%s}", vote.getCandidateAddr()));
         } else {
-            this.nodeManager.setCurTerm(vote.getTerm());
-            voteResponse = VoteResponse.createVote(nodeManager.getCurTerm(), true);
+            // so the cur node is in candidate.
+            return getRemotingCommand(request, false, String.format("vote for node: {%s}", vote.getCandidateAddr()));
         }
 
-        // 收到其他节点请求，重置自己的timer
-        this.nodeManager.resetElectionTimer();
+    }
 
-        LOG.info("node {} receive vote request: {}", nodeManager.getSelfAddr(), vote);
-        RemotingCommand resp = RemotingCommand.createResponse(request.getCode(),
-                String.format("the vote of the node {%s}", RemotingUtils.parseRemoteAddress(ctx.channel())));
+    private RemotingCommand getRemotingCommand(RemotingCommand request, boolean isVote, String info) {
+        VoteResponse voteResponse = VoteResponse.createVote(nodeManager.getCurTerm(), isVote);
+        RemotingCommand resp = RemotingCommand.createResponse(request.getCode(), info);
         resp.setBody(JSONSerializer.encode(voteResponse));
         return resp;
     }
@@ -75,4 +60,6 @@ public class RequestVoteProcessor implements RequestProcessor {
     public boolean rejectRequest() {
         return false;
     }
+
+
 }

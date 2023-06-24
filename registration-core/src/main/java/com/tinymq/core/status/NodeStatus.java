@@ -14,17 +14,42 @@ public class NodeStatus {
     private AtomicInteger curTerm = new AtomicInteger(0);
     /* 节点状态 */
     private volatile int status;
-
     /*leaderAddr*/
     private volatile String leaderAddr = "";
+
+    /*投票权*/
+    private volatile boolean isVoteAvailable;
 
     private final ReentrantLock lockPeerNodeStatus = new ReentrantLock();
     private final ConcurrentHashMap</*addr*/String, InnerPeerNodeStatus> peerNodeStatus = new ConcurrentHashMap<>();
 
-    public void initPeerNodeStatus(final Set<String> nodes) {
+    public void setVoteRight(boolean isVoteAvailable) {
+        synchronized (this) {
+            this.isVoteAvailable = isVoteAvailable;
+        }
+    }
+    public boolean isVoteAvailable() {
+        return this.isVoteAvailable;
+    }
+    public void resetVoteRight() {
+        synchronized (this) {
+            this.isVoteAvailable = true;
+        }
+    }
+
+    /*
+    * nextIndex, the last log index + 1
+    * matchIndex, initialized to 0
+    * */
+    public void initPeerNodeStatus(final Set<String> nodes, int leaderIndex) {
         if(!nodes.isEmpty()) {
-            for (String node : nodes) {
-                peerNodeStatus.putIfAbsent(node, new InnerPeerNodeStatus(0, -1));
+            lockPeerNodeStatus.lock();
+            try {
+                for (String node : nodes) {
+                    peerNodeStatus.putIfAbsent(node, new InnerPeerNodeStatus(leaderIndex + 1, -1));
+                }
+            } finally {
+                lockPeerNodeStatus.unlock();
             }
         }
     }
@@ -82,6 +107,20 @@ public class NodeStatus {
         return leaderAddr;
     }
 
+    public void setVoteAvailable(boolean voteAvailable) {
+        isVoteAvailable = voteAvailable;
+    }
+
+    public void decrementNextIndex(String remoteAddr) {
+        try {
+            lockPeerNodeStatus.lock();
+            InnerPeerNodeStatus sta = peerNodeStatus.get(remoteAddr);
+            sta.nextIndex --;
+            peerNodeStatus.put(remoteAddr, sta);
+        } finally {
+            lockPeerNodeStatus.unlock();
+        }
+    }
 
     public enum STATUS {
         LEADER(0),
@@ -109,6 +148,14 @@ public class NodeStatus {
         public InnerPeerNodeStatus(int nextIndex, int matchIndex) {
             this.nextIndex = nextIndex;
             this.matchIndex = matchIndex;
+        }
+
+        @Override
+        public String toString() {
+            return "InnerPeerNodeStatus{" +
+                    "nextIndex=" + nextIndex +
+                    ", matchIndex=" + matchIndex +
+                    '}';
         }
     }
 }

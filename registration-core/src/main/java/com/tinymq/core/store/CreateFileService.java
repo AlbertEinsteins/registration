@@ -17,7 +17,7 @@ asynchronous create file in advance
 public class CreateFileService extends ServiceThread {
     private static final Logger LOG = LoggerFactory.getLogger(CreateFileService.class);
 
-    private static final int WAIT_TIMEOUT = 5 * 1000;
+    private static final int WAIT_TIMEOUT = 3 * 1000;
     private final double createFactor;
     private final String storePath;
     private final DefaultCommitLogService commitLogService;
@@ -43,7 +43,7 @@ public class CreateFileService extends ServiceThread {
                 LOG.warn("[putAndGetMappedFile]-wait file {} to be created timeout", fileName);
             }
         } catch (Exception e) {
-            LOG.error("[putAndGetMappedFile]-push a create file {} request, exception occurred", fileName);
+            LOG.error("[putAndGetMappedFile]-push a create file {} request, exception occurred", fileName, e);
         }
 
         return null;
@@ -77,9 +77,9 @@ public class CreateFileService extends ServiceThread {
             createFileRequest.setMappedFile(mappedFile);
             commitLogService.getMappedFileGroup().add(mappedFile);
         } catch (InterruptedException e) {
-            LOG.info("[mapFile] exception occurred when take a request from tasks");
+            LOG.info("[mapFile] exception occurred when take a request from tasks", e);
         } catch (IOException e) {
-            LOG.info("[mapFile] create file exception");
+            LOG.info("[mapFile] create file exception", e);
         } finally {
             if(createFileRequest != null) {
                 createFileRequest.getLatch().countDown();

@@ -248,6 +248,7 @@ public class RemotingCommand {
                 "code=" + code +
                 ", version=" + version +
                 ", requestId=" + requestId +
+                " extFields=" + extFields +
                 ", flag=" + flag +
                 ", info='" + info + '\'' +
                 '}';

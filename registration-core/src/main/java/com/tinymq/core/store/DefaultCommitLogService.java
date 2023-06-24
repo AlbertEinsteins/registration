@@ -1,14 +1,12 @@
 package com.tinymq.core.store;
 
-import com.tinymq.core.RegistrationConfig;
+import com.tinymq.core.config.RegistrationConfig;
 import com.tinymq.core.exception.AppendLogException;
 import com.tinymq.core.utils.UtilsAll;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicInteger;
 
 public class DefaultCommitLogService implements CommitLogService {
     private static final Logger LOG = LoggerFactory.getLogger(DefaultCommitLogService.class);
@@ -16,7 +14,6 @@ public class DefaultCommitLogService implements CommitLogService {
     private final MappedFileGroup mappedFileGroup;
     private final CreateFileService createFileService;
 
-    private final ExecutorService publicThreadPool;
     private final AtomicBoolean firstCreate = new AtomicBoolean(false);
 
     private final RegistrationConfig registrationConfig;
@@ -28,13 +25,6 @@ public class DefaultCommitLogService implements CommitLogService {
                 registrationConfig.getCreateNewFileFactor(), this);
         this.mappedFileGroup = new MappedFileGroup(registrationConfig.getFileSize(), createFileService);
 
-        this.publicThreadPool = Executors.newFixedThreadPool(Runtime.getRuntime().availableProcessors(), new ThreadFactory() {
-            private final AtomicInteger threadIdx = new AtomicInteger(0);
-            @Override
-            public Thread newThread(Runnable r) {
-                return new Thread(r, String.format("[CommitlogService-publicThreadPool]-%d", threadIdx.getAndIncrement()));
-            }
-        });
     }
 
     public void start() {
@@ -43,7 +33,6 @@ public class DefaultCommitLogService implements CommitLogService {
 
     public void shutdown() {
         this.createFileService.shutdown(false);
-        this.publicThreadPool.shutdown();
     }
 
 

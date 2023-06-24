@@ -13,7 +13,7 @@ public class CommitLogEntry {
     /* 创建任期 */
     private int createdTerm;
     private int bodyLength;
-    private transient byte[] body;
+    private byte[] body;
 
     public static CommitLogEntry createUnCommited(int term, byte[] body) {
         return create(term, body);
