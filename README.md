@@ -1,5 +1,5 @@
-# tinymq
-一个轻量的消息队列中间件 
+# registration
+注册中心，基于Raft,Netty实现
 
 ## Keypoint
 - 基于Raft协议
