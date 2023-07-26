@@ -14,34 +14,49 @@ import com.tinymq.remote.protocol.RemotingCommand;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.nio.charset.StandardCharsets;
 import java.util.Map;
 
 public class DefaultDelegateRPC implements DelegateRPC {
     private static final Logger LOG = LoggerFactory.getLogger(DefaultDelegateRPC.class);
 
-
     private final RemotingClient remotingClient;
 
-    public DefaultDelegateRPC(final RemotingClient remotingClient) {
+    private RPCCallback<SendResult> rpcCallback;
+
+    public DefaultDelegateRPC(RemotingClient remotingClient) {
+        this(remotingClient, null);
+    }
+
+    public DefaultDelegateRPC(final RemotingClient remotingClient, RPCCallback<SendResult> resultRPCCallback) {
         this.remotingClient = remotingClient;
+        this.rpcCallback = resultRPCCallback;
+    }
+
+    public void setRpcCallback(RPCCallback<SendResult> rpcCallback) {
+        this.rpcCallback = rpcCallback;
     }
 
     @Override
-    public SendResult send(SendRequest sendRequest, long timeoutMillis, RPCCallback<SendResult> sendResultRPCCallback) throws SendException {
+    public SendResult send(SendRequest sendRequest, long timeoutMillis) throws SendException {
         if(sendRequest == null) {
             return SendResult.create(true, null, "Empty, do nothing", null);
         }
 
         RemotingCommand req = RemotingCommand.createRequest(sendRequest.getRequestCode());
         setRequestBody(req, sendRequest);
-        return getResponse(sendRequest, timeoutMillis, req);
+        final SendResult sendResult = getResponse(sendRequest, timeoutMillis, req);
+        if(this.rpcCallback != null) {
+            // after call
+            this.rpcCallback.doOperate(sendResult);
+        }
+        return sendResult;
     }
 
     private SendResult getResponse(SendRequest sendRequest, long timeoutMillis, RemotingCommand req) throws SendException {
         try {
             RemotingCommand resp = this.remotingClient.invokeSync(sendRequest.getAddr(), req, timeoutMillis);
             final Map<String, String> extFields = resp.getExtFields();
+
             int status = Integer.parseInt(extFields.get(ExtFieldDict.REGISTRY_REQUEST_STATUS));
             return SendResult.create(true, resp.getBody(), resp.getInfo(),
                     RequestStatus.fromCode(status));
@@ -51,21 +66,11 @@ public class DefaultDelegateRPC implements DelegateRPC {
         }
     }
 
-    private void setRequestBody(RemotingCommand req, SendRequest sendRequest) {
-        KVStateModel state = sendRequest.getKvStateModel();
 
-        switch (sendRequest.getRequestCode()) {
-            case SendRequest.POLL_RESPONSE_CODE:
-                req.setBody(
-                        state.getKey().getBytes(StandardCharsets.UTF_8)
-                );
-                return ;
-            case SendRequest.PUSH_REQUEST_CODE:
-                req.setBody(
-                        state.encode(state)
-                );
-                return ;
-        }
-        throw new RuntimeException("Not support code");
+    private void setRequestBody(RemotingCommand req, SendRequest sendRequest) {
+        req.setBody(
+                sendRequest.getBody()
+        );
     }
+
 }

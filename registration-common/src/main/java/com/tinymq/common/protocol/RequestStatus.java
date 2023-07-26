@@ -5,13 +5,14 @@ package com.tinymq.common.protocol;
  */
 public enum RequestStatus {
     NOT_LEADER(0),
-
+    //== put and get key status
     READ_SUCCESS(1),
-
     WRITE_SUCCESS(2),
 
-    EXCEPTION_OCCURRED(3);
+    EXCEPTION_OCCURRED(3),
 
+    //== add watcher
+    KEY_NOT_EXIST(4);
 
 
     public final int code;

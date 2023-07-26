@@ -1,5 +1,6 @@
 package com.tinymq;
 
+import cn.hutool.json.JSONUtil;
 import com.tinymq.registration.client.KVRegClient;
 import com.tinymq.registration.client.dto.SendResult;
 import com.tinymq.registration.client.exception.SendException;
@@ -17,17 +18,17 @@ public class ClientApp {
 
     @Before
     public void testPutAndGet() {
-        this.regClient = new KVRegClient();
-        regClient.addNodes("127.0.0.1:7800", "127.0.0.1:7801", "127.0.0.1:7802");
+        this.regClient = new KVRegClient(8101);
+        regClient.addClients("127.0.0.1:7800", "127.0.0.1:7801", "127.0.0.1:7802");
         regClient.start();
 
     }
 
     @Test
     public void putAndGet() throws SendException {
-        final SendResult sendResult = regClient.put("time2", "xxxxx", 3000);
+        final SendResult sendResult = regClient.put("time2", "xxxxx");
         if(sendResult.isSuccess()) {
-            final SendResult result = regClient.get("time1", 1000);
+            final SendResult result = regClient.get("time2");
             System.out.println(new String(result.getResult(), StandardCharsets.UTF_8));
         }
     }

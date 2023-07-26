@@ -94,7 +94,7 @@ public abstract class AbstractNettyRemoting {
         final int reqId = msg.getRequestId();
 
         if(pair == null) {
-            LOGGER.warn("request code is not supported, check the code");
+            LOGGER.error("request code is not supported, check the code");
             RemotingCommand resp = RemotingCommand.createResponse(msg.getCode(), "request code not supported, request is rejected");
             resp.setRequestId(reqId);
             ctx.writeAndFlush(resp);

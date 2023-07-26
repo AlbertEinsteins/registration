@@ -76,11 +76,11 @@ public class NodeManager {
 
 
     //============= store module =======================
-    private final StoreManager storeManager;
+    private StoreManager storeManager;
 
 
     //========== state machine ====================
-    private final StateMachine stateMachine;
+    private StateMachine stateMachine;
 
 
     public NodeManager(final RegistrationConfig registrationConfig,
@@ -97,7 +97,7 @@ public class NodeManager {
         this.nettyServerConfig = new NettyServerConfig();
         this.nettyServerConfig.setListenPort(registrationConfig.getListenPort());
         this.nettyRemotingServer = new NettyRemotingServer(nettyServerConfig);
-        this.selfAddr = "127.0.0.1" + ":" + registrationConfig.getListenPort();
+        this.selfAddr = registrationConfig.getSelfAddr();
 
 
         this.registerProcessors();
@@ -178,8 +178,15 @@ public class NodeManager {
         nettyRemotingServer.registerProcessor(RequestCode.APPENDENTRIES, appendEntriesProcessor, null);
         nettyRemotingServer.registerProcessor(RequestCode.APPENDENTRIES_EMPTY, appendEntriesProcessor, null);
         nettyRemotingServer.registerProcessor(RequestCode.REIGISTRATION_REQUESTVOTE, requestVoteProcessor, null);
+
+        // client get/put
         nettyRemotingServer.registerProcessor(RequestCode.REGISTRATION_CLIENT_WRITE, acceptClientProcessor, null);
         nettyRemotingServer.registerProcessor(RequestCode.REGISTRATION_CLIENT_READ, acceptClientProcessor, null);
+
+        // watcher request processor
+        nettyRemotingServer.registerProcessor(RequestCode.REGISTRATION_CLIENT_WATCHER_ADD, acceptClientProcessor, null);
+        nettyRemotingServer.registerProcessor(RequestCode.REGISTRATION_CLIENT_WATCHER_DEL, acceptClientProcessor, null);
+        nettyRemotingServer.registerProcessor(RequestCode.REGISTRATION_CLIENT_KEY_CREATE, acceptClientProcessor, null);
     }
 
     /*urls <ip:port>;...*/
@@ -281,8 +288,8 @@ public class NodeManager {
                 case OLD_TERM:
                     break;
                 case NOT_MATCH:
-//                    System.out.println(remoteAddr + "->" + nodeStatus.getNodeStatus(remoteAddr).nextIndex);
-//                    nodeStatus.decrementNextIndex(remoteAddr);
+                    System.out.println(remoteAddr + "->" + nodeStatus.getNodeStatus(remoteAddr).nextIndex);
+                    nodeStatus.decrementNextIndex(remoteAddr);
                     break;
             }
 
@@ -358,7 +365,6 @@ public class NodeManager {
                 LOG.info("the leader has been elected, end election");
                 return ;
             }
-
             for (String addr :
                     addrList) {
                 if (selfAddr.equals(addr)) {
@@ -399,6 +405,7 @@ public class NodeManager {
             if (voteCount.get() > addrList.size() / 2) {
                 LOG.info("the node {} receive {} votes, then turn to the leader", selfAddr, voteCount.get());
                 NodeManager.this.setNodeStatus(NodeStatus.STATUS.LEADER);
+                NodeManager.this.setLeader(selfAddr);
                 // 不再进行定时选举
                 NodeManager.this.randomResettableTimer.clearTimer();
 
@@ -508,7 +515,7 @@ public class NodeManager {
                         try {
                             NodeStatus.InnerPeerNodeStatus status = nodeStatus.getNodeStatus(addr);
                             // 获取需要复制的log
-                            LOG.debug("addr -> status: " + status);
+                            LOG.debug("addr [{}] -> status: [{}]", addr, status);
                             final AppendEntriesRequest heartbeat = prepareEmptyRequest(status.nextIndex);
                             CommitLogEntry entryByNodeAddr = prepareEntryByAddr(status.nextIndex);
 
@@ -573,5 +580,9 @@ public class NodeManager {
 
     public String getLeader() {
         return this.nodeStatus.getLeaderAddr();
+    }
+
+    public NettyRemotingClient getNettyRemotingClient() {
+        return nettyRemotingClient;
     }
 }

@@ -50,4 +50,14 @@ public class SendResult {
     public void setStatus(RequestStatus status) {
         this.status = status;
     }
+
+
+    @Override
+    public String toString() {
+        return "SendResult{" +
+                "isSuccess=" + isSuccess +
+                ", info='" + info + '\'' +
+                ", status=" + status +
+                '}';
+    }
 }

@@ -106,6 +106,9 @@ public class AppendEntriesProcessor implements RequestProcessor {
             response = AppendEntriesResponse.create(this.nodeManager.getCurTerm(),
                     true, matchIndex, null);
         } else {
+            LOG.debug("Not match, leader PrevLogIndex[{}], leaderPrevLogTerm[{}]",
+                    prevLogIndex, prevLogTerm);
+            // TODO: find the match Index
             response = AppendEntriesResponse.create(this.nodeManager.getCurTerm(),
                     false, -1, AppendEntriesFailedType.NOT_MATCH);
         }

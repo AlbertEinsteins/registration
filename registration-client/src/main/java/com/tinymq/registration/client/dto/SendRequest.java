@@ -6,8 +6,6 @@ import com.tinymq.core.status.DefaultKVStateModel;
 import com.tinymq.core.status.KVStateModel;
 
 public class SendRequest {
-    public static final int PUSH_REQUEST_CODE = RequestCode.REGISTRATION_CLIENT_WRITE;
-    public static final int POLL_RESPONSE_CODE = RequestCode.REGISTRATION_CLIENT_READ;
     public static final int PUSH_FLAG = 0;
     public static final int POLL_FLAG = 1;
 
@@ -20,27 +18,24 @@ public class SendRequest {
      *      1 for get req
      */
     private int flag;
-    private KVStateModel kvStateModel;
+    private byte[] body;
 
 
-    public static SendRequest createPollReq(String url, String key) {
+    public static SendRequest createPollReq(String url, int code, byte[] body) {
         SendRequest sendRequest = new SendRequest();
         sendRequest.markPoll();
-        sendRequest.requestCode = POLL_RESPONSE_CODE;
+        sendRequest.requestCode = code ;
         sendRequest.addr = url;
-        sendRequest.kvStateModel = new DefaultKVStateModel();
-        sendRequest.kvStateModel.setKey(key);
+        sendRequest.body = body;
         return sendRequest;
     }
 
-    public static SendRequest createPushReq(String url, String key, String val) {
+    public static SendRequest createPushReq(String url, int code, byte[] body) {
         SendRequest sendRequest = new SendRequest();
         sendRequest.markPush();
-        sendRequest.requestCode = PUSH_REQUEST_CODE;
+        sendRequest.requestCode = code;
         sendRequest.addr = url;
-        sendRequest.kvStateModel = new DefaultKVStateModel();
-        sendRequest.kvStateModel.setKey(key);
-        sendRequest.kvStateModel.setVal(val);
+        sendRequest.body = body;
         return sendRequest;
     }
 
@@ -65,11 +60,24 @@ public class SendRequest {
         return requestCode;
     }
 
-    public KVStateModel getKvStateModel() {
-        return kvStateModel;
+    public byte[] getBody() {
+        return body;
+    }
+
+    public void setBody(byte[] body) {
+        this.body = body;
     }
 
     public String getAddr() {
         return addr;
     }
+
+    public void setAddr(String addr) {
+        this.addr = addr;
+    }
+
+    public void setRequestCode(int requestCode) {
+        this.requestCode = requestCode;
+    }
+
 }

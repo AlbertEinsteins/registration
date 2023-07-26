@@ -1,11 +1,15 @@
 package com.tinymq.core.processor;
 
+import com.tinymq.common.dto.WatcherDto;
 import com.tinymq.common.protocol.ExtFieldDict;
 import com.tinymq.common.protocol.RequestCode;
 import com.tinymq.common.protocol.RequestStatus;
+import com.tinymq.core.exception.KeyNotFoundException;
 import com.tinymq.core.status.NodeManager;
 import com.tinymq.core.status.StateMachine;
+import com.tinymq.core.watcher.Watcher;
 import com.tinymq.remote.netty.RequestProcessor;
+import com.tinymq.remote.protocol.JSONSerializer;
 import com.tinymq.remote.protocol.RemotingCommand;
 import io.netty.channel.ChannelHandlerContext;
 import org.slf4j.Logger;
@@ -32,7 +36,6 @@ public class AcceptClientProcessor implements RequestProcessor {
             LOG.info("the node {} receive null request", nodeManager.getSelfAddr());
             return null;
         }
-
         /*  */
         switch (nodeManager.getNodeStatus()) {
             case LEADER:
@@ -52,10 +55,11 @@ public class AcceptClientProcessor implements RequestProcessor {
     }
 
     private RemotingCommand processFollower(RemotingCommand request) {
-        //TODO: 如果是Follower，那么会送客户端leader的地址，让客户端去访问
+        // 如果是Follower，那么会送客户端leader的地址，让客户端去访问
         String leaderAddr = nodeManager.getLeader();
+        LOG.debug("the client request non-leader node, leaderip [{}]", leaderAddr);
         final RemotingCommand resp = RemotingCommand.createResponse(request.getCode(), "the request node is not leader, return leader ip",
-                setRequestStatus(RequestStatus.NOT_LEADER));
+                setRequestStatus(ExtFieldDict.REGISTRY_REQUEST_STATUS, RequestStatus.NOT_LEADER));
         resp.setBody(
                 leaderAddr.getBytes(StandardCharsets.UTF_8)
         );
@@ -69,6 +73,11 @@ public class AcceptClientProcessor implements RequestProcessor {
                     return processReadImpl(request);
                 case RequestCode.REGISTRATION_CLIENT_WRITE:
                     return processWriteImpl(request);
+                case RequestCode.REGISTRATION_CLIENT_WATCHER_ADD:
+                case RequestCode.REGISTRATION_CLIENT_WATCHER_DEL:
+                    return processRegist(request);
+                case RequestCode.REGISTRATION_CLIENT_KEY_CREATE:
+                    return processNodeAdd(request);
                 default:
                     break;
             }
@@ -76,6 +85,51 @@ public class AcceptClientProcessor implements RequestProcessor {
             LOG.error("handle req code:[{}], error occurred", request.getCode(), e);
         }
         return RemotingCommand.createResponse(request.getCode(), "error occurred when handle request");
+    }
+
+    private RemotingCommand processNodeAdd(RemotingCommand request) {
+        WatcherDto watcherDto;
+        try {
+            watcherDto = JSONSerializer.decode(request.getBody(), WatcherDto.class);
+        } catch (Exception e) {
+            return RemotingCommand.createResponse(request.getCode(),
+                    "Error occurred when parse body, it should be WatcherDto.class",
+                    setRequestStatus(ExtFieldDict.REGISTRY_REQUEST_STATUS, RequestStatus.EXCEPTION_OCCURRED));
+        }
+
+        String key = watcherDto.getWatcherKey();
+        try {
+            this.stateMachine.createNode(key);
+            return RemotingCommand.createResponse(request.getCode(),
+                    "create successful", setRequestStatus(ExtFieldDict.REGISTRY_REQUEST_STATUS, RequestStatus.WRITE_SUCCESS));
+        } catch (Exception e) {
+            return RemotingCommand.createResponse(request.getCode(),
+                    e.getMessage(), setRequestStatus(ExtFieldDict.REGISTRY_REQUEST_STATUS, RequestStatus.EXCEPTION_OCCURRED));
+        }
+    }
+
+    private RemotingCommand processRegist(RemotingCommand request) {
+        // extract key, client
+        WatcherDto watcherDto;
+        try {
+            watcherDto = JSONSerializer.decode(request.getBody(), WatcherDto.class);
+        } catch (Exception e) {
+            return RemotingCommand.createResponse(request.getCode(),
+                    "Error occurred when parse body, it should be WatcherDto.class",
+                    setRequestStatus(ExtFieldDict.REGISTRY_REQUEST_STATUS, RequestStatus.EXCEPTION_OCCURRED));
+        }
+
+        String key = watcherDto.getWatcherKey();
+        String clientAddr = watcherDto.getClientAddr();
+
+        try {
+            this.stateMachine.registryWatcher(key, clientAddr);
+            return RemotingCommand.createResponse(request.getCode(), "register successfully",
+                    setRequestStatus(ExtFieldDict.REGISTRY_REQUEST_STATUS, RequestStatus.WRITE_SUCCESS));
+        } catch (KeyNotFoundException re) {
+            return RemotingCommand.createResponse(request.getCode(), re.getMsg(),
+                    setRequestStatus(ExtFieldDict.REGISTRY_REQUEST_STATUS, RequestStatus.KEY_NOT_EXIST));
+        }
     }
 
     private RemotingCommand processReadImpl(RemotingCommand request) {
@@ -92,26 +146,26 @@ public class AcceptClientProcessor implements RequestProcessor {
         } catch (Exception e) {
             LOG.error("the server require the KVStateModel.class", e);
             return RemotingCommand.createResponse(request.getCode(), "the server require the StateModel.class",
-                    setRequestStatus(RequestStatus.EXCEPTION_OCCURRED));
+                    setRequestStatus(ExtFieldDict.REGISTRY_REQUEST_STATUS, RequestStatus.EXCEPTION_OCCURRED));
         }
 
         try {
             RemotingCommand resp = this.nodeManager.handleWriteRequest(request);
             //只要保存到本地, 同步log成功，并写入状态机
-            resp.setExtFields(setRequestStatus(RequestStatus.WRITE_SUCCESS));
+            resp.setExtFields(setRequestStatus(ExtFieldDict.REGISTRY_REQUEST_STATUS, RequestStatus.WRITE_SUCCESS));
             return resp;
         } catch (Exception e) {
             LOG.error("replicate log error", e);
             return RemotingCommand.createResponse(request.getCode(), "replicate log error",
-                    setRequestStatus(RequestStatus.EXCEPTION_OCCURRED));
+                    setRequestStatus(ExtFieldDict.REGISTRY_REQUEST_STATUS, RequestStatus.EXCEPTION_OCCURRED));
         }
     }
 
-    private Map<String, String> setRequestStatus(RequestStatus requestStatus) {
+    private Map<String, String> setRequestStatus(String extPropertyName, RequestStatus requestStatus) {
         if(requestStatus != null) {
             Map<String, String> extFields = new HashMap<>();
 
-            extFields.put(ExtFieldDict.REGISTRY_REQUEST_STATUS, String.valueOf(requestStatus.code));
+            extFields.put(extPropertyName, String.valueOf(requestStatus.code));
             return extFields;
         }
         return null;

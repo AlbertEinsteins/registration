@@ -6,6 +6,7 @@ import java.util.Arrays;
 import java.util.concurrent.CopyOnWriteArrayList;
 
 public class GuiceAppTester {
+    // DI
     private static Injector injector;
     private static CopyOnWriteArrayList<Module> moduleList = new CopyOnWriteArrayList<>();
 
@@ -26,7 +27,12 @@ public class GuiceAppTester {
         @Inject
         private MyMapper mapper;
 
-        public void solve() {
+
+    public void setMapper(MyMapper mapper) {
+        this.mapper = mapper;
+    }
+
+    public void solve() {
             this.mapper.pt();
         }
 
@@ -61,6 +67,7 @@ public class GuiceAppTester {
 
 
         MyService myService = injector.getInstance(MyService.class);
+
         myService.solve();
         MyService myService2 = injector.getInstance(MyService.class);
         System.out.println(myService2.hashCode() + " " + myService.hashCode());

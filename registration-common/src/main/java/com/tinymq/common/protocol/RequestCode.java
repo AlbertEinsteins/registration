@@ -13,4 +13,10 @@ public class RequestCode {
     public static final int REGISTRATION_CLIENT_READ = 13;
     public static final int REGISTRATION_CLIENT_WRITE = 14;
 
+    public static final int REGISTRATION_CLIENT_WATCHER_ADD = 15;
+    public static final int REGISTRATION_CLIENT_WATCHER_DEL = 16;
+    public static final int REGISTRATION_CLIENT_WATCHER_RESPONSE = 17;
+
+    public static final int REGISTRATION_CLIENT_KEY_CREATE = 18;
+
 }

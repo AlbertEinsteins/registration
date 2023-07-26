@@ -5,6 +5,8 @@ import com.tinymq.core.status.KVStateMachine;
 import com.tinymq.core.status.NodeManager;
 import com.tinymq.core.status.StateMachine;
 import com.tinymq.core.store.StoreManager;
+import com.tinymq.core.watcher.DefaultWatcherListener;
+import com.tinymq.core.watcher.WatcherListener;
 
 public class DefaultRegistrationImpl implements Registration {
 
@@ -15,12 +17,19 @@ public class DefaultRegistrationImpl implements Registration {
 
     private final StateMachine stateMachine;
 
+
     public DefaultRegistrationImpl(final RegistrationConfig registrationConfig) {
         this.registrationConfig = registrationConfig;
-        this.stateMachine = new KVStateMachine();
-        this.storeManager = new StoreManager(registrationConfig, this.stateMachine);
 
+        this.stateMachine = new KVStateMachine();
+
+        this.storeManager = new StoreManager(registrationConfig, this.stateMachine);
         this.nodeManager = new NodeManager(registrationConfig, storeManager, stateMachine);
+
+        // 注入 key update listener
+        WatcherListener watcherListener = new DefaultWatcherListener(
+                nodeManager.getNettyRemotingClient(), stateMachine);
+        this.stateMachine.registryWatcherListener(watcherListener);
     }
 
     @Override

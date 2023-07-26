@@ -6,6 +6,6 @@ import com.tinymq.registration.client.exception.SendException;
 
 public interface DelegateRPC {
 
-    SendResult send(SendRequest req, long timeoutMillis, RPCCallback<SendResult> respRPCCallback) throws SendException;
+    SendResult send(SendRequest req, long timeoutMillis) throws SendException;
 
 }

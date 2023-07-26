@@ -10,12 +10,14 @@ public class RegistrationConfig {
             "addrNodes",
             "listenPort"
     };
+
     public RegistrationConfig(String configFilePath) {
         ResolveFileConfig resolveFileConfig = new ResolveFileConfig(configFilePath);
         ensureNecessaryProperty(resolveFileConfig);
 
         this.addrNodes = new HashSet<>((List) resolveFileConfig.fromKey("addrNodes"));
         this.listenPort = (int)resolveFileConfig.fromKey("listenPort");
+        this.selfAddr = (String)resolveFileConfig.fromKey("selfAddr");
     }
 
     private void ensureNecessaryProperty(ResolveFileConfig resolveFileConfig) {
@@ -28,6 +30,8 @@ public class RegistrationConfig {
 
 
     //========= status ===============
+    private final String selfAddr;
+
     private int listenPort = 7800;
     private int heartBeatTimeMillis = 1000;
     private int publicThreadPoolSize = 8;
@@ -98,5 +102,9 @@ public class RegistrationConfig {
 
     public void setAddrNodes(Set<String> addrNodes) {
         this.addrNodes = addrNodes;
+    }
+
+    public String getSelfAddr() {
+        return selfAddr;
     }
 }

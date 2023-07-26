@@ -10,11 +10,13 @@
 
 ## Samples
 ### Quick Startup
+
+#### simple example
 1.Server
 进入registration-core/test/
 分别启动三个节点类
-- Server1,
-- Server2,
+- Server1
+- Server2
 - Server3
 
 2.Client
@@ -47,7 +49,33 @@ public class ClientApp {
     }
 }
 ```
+3.Watcher - 服务端推送
+```
+   public static void main(String[] args) {
+    RegClient regClient = new KVRegClient(8100);
+        regClient.addClients("127.0.0.1:7800", "127.0.0.1:7801", "127.0.0.1:7802");
+        regClient.start();
 
+        SendResult res = regClient.createNode("time2");
+        if(!res.isSuccess()) {
+            System.out.println("create node err: " + res.getInfo());
+            return ;
+        }
+
+        res = regClient.addWatcher("time2", new InvokeCallback() {
+            @Override
+            public void onKeyChanged(String key, String oldV, String newV) throws Exception {
+                System.out.println(key);
+                System.out.println(oldV);
+                System.out.println(newV);
+            }
+        });
+
+        if(!res.isSuccess()) {
+            System.out.println(res.getInfo());
+        }
+}
+```
 
 ### Startup
 #### 1.Server
@@ -81,7 +109,7 @@ public class RegistrationStartup {
 
 ```
 #### 2.Client
-- CLient位于registration-client下
+- Client位于registration-client下
 ```java
 public class ClientApp {
     private KVRegClient regClient;
