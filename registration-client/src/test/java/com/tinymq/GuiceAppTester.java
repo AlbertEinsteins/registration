@@ -1,6 +1,7 @@
 package com.tinymq;
 
 import com.google.inject.*;
+import com.google.inject.Module;
 
 import java.util.Arrays;
 import java.util.concurrent.CopyOnWriteArrayList;
@@ -23,16 +24,10 @@ public class GuiceAppTester {
 
 //    @Singleton
     static class MyService {
-
         @Inject
         private MyMapper mapper;
 
-
-    public void setMapper(MyMapper mapper) {
-        this.mapper = mapper;
-    }
-
-    public void solve() {
+        public void solve() {
             this.mapper.pt();
         }
 

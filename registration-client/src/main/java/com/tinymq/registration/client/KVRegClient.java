@@ -75,7 +75,7 @@ public class KVRegClient implements RegClient {
     }
 
 
-    public void addClients(String... urls) {
+    public void addServerNodes(String... urls) {
         this.serverNodes.addAll(Arrays.asList(urls));
     }
 

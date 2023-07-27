@@ -1,9 +1,5 @@
 package com.tinymq.registration.client.dto;
 
-import com.sun.org.apache.bcel.internal.generic.PUSH;
-import com.tinymq.common.protocol.RequestCode;
-import com.tinymq.core.status.DefaultKVStateModel;
-import com.tinymq.core.status.KVStateModel;
 
 public class SendRequest {
     public static final int PUSH_FLAG = 0;

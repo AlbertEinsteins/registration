@@ -1,6 +1,5 @@
 package com.tinymq;
 
-import com.sun.java.accessibility.util.AccessibilityListenerList;
 import com.tinymq.common.protocol.ExtFieldDict;
 import com.tinymq.common.protocol.RequestCode;
 import com.tinymq.common.protocol.RequestStatus;

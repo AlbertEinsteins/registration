@@ -19,7 +19,7 @@ public class ClientApp {
     @Before
     public void testPutAndGet() {
         this.regClient = new KVRegClient(8101);
-        regClient.addClients("127.0.0.1:7800", "127.0.0.1:7801", "127.0.0.1:7802");
+        regClient.addServerNodes("127.0.0.1:7800", "127.0.0.1:7801", "127.0.0.1:7802");
         regClient.start();
 
     }

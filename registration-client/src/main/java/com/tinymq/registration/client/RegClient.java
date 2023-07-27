@@ -33,7 +33,7 @@ public interface RegClient {
 
     SendResult createNode(String key);
 
-    void addClients(String... nodes);
+    void addServerNodes(String... nodes);
 
     void start();
 

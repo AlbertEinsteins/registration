@@ -10,7 +10,7 @@ import java.util.concurrent.TimeUnit;
 public class ClientWatcher {
     public static void main(String[] args) throws InterruptedException {
         RegClient regClient = new KVRegClient(8100);
-        regClient.addClients("127.0.0.1:7800", "127.0.0.1:7801", "127.0.0.1:7802");
+        regClient.addServerNodes("127.0.0.1:7800", "127.0.0.1:7801", "127.0.0.1:7802");
         regClient.start();
 
         SendResult res = regClient.createNode("time2");
