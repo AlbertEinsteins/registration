@@ -1,5 +1,5 @@
 # registration
-注册中心，基于Raft,Netty实现
+KV存储，基于Raft,Netty实现
 
 ## Keypoint
 - 基于Raft协议
